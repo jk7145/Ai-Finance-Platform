@@ -37,26 +37,26 @@ In the Vercel dashboard, add these environment variables:
 
 ```env
 # Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_bWFueS1waWthLTkzLmNsZXJrLmFjY291bnRzLmRldiQ
-CLERK_SECRET_KEY=sk_test_l4BMN3NyxHcq7cqyVMH5XZVh2MZtDnalcpGzEq2URP
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 
 # Database (Use Supabase PostgreSQL for production)
-DATABASE_URL=postgresql://postgres.czjvkkbfsktqmmikznen:kRPOGdw9qxBDkbnA@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true
-DIRECT_URL=postgresql://postgres.czjvkkbfsktqmmikznen:kRPOGdw9qxBDkbnA@aws-1-ap-south-1.pooler.supabase.com:5432/postgres
+DATABASE_URL=
+DIRECT_URL=
 
 # AI
-GEMINI_API_KEY=AIzaSyB1XD83aUIaZEkVRqFBIFncPBnA8-EtiqI
+GEMINI_API_KEY=
 
 # Email
-RESEND_API_KEY=re_BqXyKE6q_DuJJY1aCPWUXh7n5F3kLQyM5
+RESEND_API_KEY=
 
 # Security
-ARCJET_KEY=ajkey_01khp49scyeq6bt73vbwm1321h
+ARCJET_KEY=
 
 # Inngest
-INNGEST_SIGNING_KEY=signkey-prod-01490dead05bc0ab983cf7b4d50eecec2dfb7b2a56596f5c0941b696d9305a20
+INNGEST_SIGNING_KEY=
 INNGEST_EVENT_KEY=(get from Inngest dashboard)
 ```
 
