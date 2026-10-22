@@ -1,6 +1,4 @@
-import { seedTransactions } from "@/actions/seed";
-
+// Seeding is a development-only operation. Never expose a mutating public GET route.
 export async function GET() {
-  const result = await seedTransactions();
-  return Response.json(result);
+  return Response.json({ error: "Not found" }, { status: 404 });
 }

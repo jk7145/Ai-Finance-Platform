@@ -8,10 +8,10 @@ import { revalidatePath } from "next/cache";
 
 const serializeTransaction = (obj) => {
   const serialized = { ...obj };
-  if (obj.balance) {
+  if (typeof obj.balance?.toNumber === "function") {
     serialized.balance = obj.balance.toNumber();
   }
-  if (obj.amount) {
+  if (typeof obj.amount?.toNumber === "function") {
     serialized.amount = obj.amount.toNumber();
   }
   return serialized;
@@ -29,8 +29,7 @@ export async function getUserAccounts() {
     throw new Error("User not found");
   }
 
-  try {
-    const accounts = await db.account.findMany({
+  const accounts = await db.account.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       include: {
@@ -46,9 +45,6 @@ export async function getUserAccounts() {
     const serializedAccounts = accounts.map(serializeTransaction);
 
     return serializedAccounts;
-  } catch (error) {
-    console.error(error.message);
-  }
 }
 
 export async function createAccount(data) {
@@ -92,7 +88,7 @@ export async function createAccount(data) {
 
     // Convert balance to float before saving
     const balanceFloat = parseFloat(data.balance);
-    if (isNaN(balanceFloat)) {
+    if (!Number.isFinite(balanceFloat) || balanceFloat < 0) {
       throw new Error("Invalid balance amount");
     }
 

@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import aj from "@/lib/arcjet";
 import { request } from "@arcjet/next";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Instantiate Gemini lazily so the dashboard can load without optional AI credentials.
 
 const serializeAmount = (obj) => ({
   ...obj,
@@ -65,9 +65,10 @@ export async function createTransaction(data) {
       throw new Error("Account not found");
     }
 
-    // Calculate new balance
+    if (!Number.isFinite(data.amount) || data.amount <= 0 || !["EXPENSE", "INCOME"].includes(data.type)) {
+      throw new Error("Invalid transaction amount or type");
+    }
     const balanceChange = data.type === "EXPENSE" ? -data.amount : data.amount;
-    const newBalance = account.balance.toNumber() + balanceChange;
 
     // Create transaction and update account balance
     const transaction = await db.$transaction(async (tx) => {
@@ -84,7 +85,7 @@ export async function createTransaction(data) {
 
       await tx.account.update({
         where: { id: data.accountId },
-        data: { balance: newBalance },
+        data: { balance: { increment: balanceChange } },
       });
 
       return newTransaction;
@@ -154,7 +155,14 @@ export async function updateTransaction(id, data) {
     const newBalanceChange =
       data.type === "EXPENSE" ? -data.amount : data.amount;
 
-    const netBalanceChange = newBalanceChange - oldBalanceChange;
+    if (!Number.isFinite(data.amount) || data.amount <= 0 || !["EXPENSE", "INCOME"].includes(data.type)) {
+      throw new Error("Invalid transaction amount or type");
+    }
+
+    const newAccount = await db.account.findFirst({
+      where: { id: data.accountId, userId: user.id },
+    });
+    if (!newAccount) throw new Error("Account not found");
 
     // Update transaction and account balance in a transaction
     const transaction = await db.$transaction(async (tx) => {
@@ -172,14 +180,15 @@ export async function updateTransaction(id, data) {
         },
       });
 
-      // Update account balance
+      // Reverse the old transaction in its original account. Apply the
+      // replacement in its new account (which may be a different account).
+      await tx.account.update({
+        where: { id: originalTransaction.accountId },
+        data: { balance: { decrement: oldBalanceChange } },
+      });
       await tx.account.update({
         where: { id: data.accountId },
-        data: {
-          balance: {
-            increment: netBalanceChange,
-          },
-        },
+        data: { balance: { increment: newBalanceChange } },
       });
 
       return updated;
@@ -187,6 +196,9 @@ export async function updateTransaction(id, data) {
 
     revalidatePath("/dashboard");
     revalidatePath(`/account/${data.accountId}`);
+    if (originalTransaction.accountId !== data.accountId) {
+      revalidatePath(`/account/${originalTransaction.accountId}`);
+    }
 
     return { success: true, data: serializeAmount(transaction) };
   } catch (error) {
@@ -221,7 +233,16 @@ export async function getUserTransactions(query = {}) {
       },
     });
 
-    return { success: true, data: transactions };
+    return {
+      success: true,
+      data: transactions.map((transaction) => ({
+        ...serializeAmount(transaction),
+        account: {
+          ...transaction.account,
+          balance: transaction.account.balance.toNumber(),
+        },
+      })),
+    };
   } catch (error) {
     throw new Error(error.message);
   }
@@ -230,7 +251,16 @@ export async function getUserTransactions(query = {}) {
 // Scan Receipt
 export async function scanReceipt(file) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+    if (!process.env.GEMINI_API_KEY) throw new Error("Receipt scanning is not configured");
+    if (!file || !file.type?.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      throw new Error("Upload an image smaller than 5MB");
+    }
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    });
 
     // Convert File to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -273,9 +303,14 @@ export async function scanReceipt(file) {
 
     try {
       const data = JSON.parse(cleanedText);
+      const amount = Number(data.amount);
+      const date = new Date(data.date);
+      if (!Number.isFinite(amount) || amount <= 0 || Number.isNaN(date.getTime())) {
+        throw new Error("The image did not contain a valid receipt");
+      }
       return {
-        amount: parseFloat(data.amount),
-        date: new Date(data.date),
+        amount,
+        date,
         description: data.description,
         category: data.category,
         merchantName: data.merchantName,
